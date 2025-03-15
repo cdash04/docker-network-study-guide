@@ -1,2 +1,2 @@
 # docker-network-study-guide
-Personnal study guide about docker's networking
+Personal notes taken while learning about docker's networking.
