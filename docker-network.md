@@ -362,7 +362,7 @@ round-trip min/avg/max = 0.113/0.151/0.196 ms
 ## Host
 
 - Simplest type.
-- When a container is specified a host network, the container will use the host network.
+- When a container is specified the host network, the container will use the host (duh).
 - No ports need to be specified since it will uses the hosts ports.
 - Can be useful for application like VPN where you want your application directly connected to your host and not isolated inside a bridge.
 - Downside is there's no isolation by default so there can be security risks associated with this network solution.
@@ -372,5 +372,22 @@ In order to run a container in a host network, simply add `--network host` to yo
 `$ docker run -itd --rm --network host --name odin busybox`
 
 ## Mac VLAN
+
+- Mac VLAN network connect containers directly to the host *network*.
+- Each container will get their own IP address and even MAC address from the host network.
+
+Now lets create a Mac VLAN network with the same `docker network create` command as before except we will need to specify which driver to use with the `-d` parameter.
+
+When creating a Mac VLAN network we also need to specify:
+- The *subnet* of our local network
+- The *gateway* (the local IP address of the router).
+- And the parent interface (*en0* in this case).
+
+```
+$ docker network create -d macvlan \
+    --subnet 192.168.18.0/24 \
+    --gateway 192.168.18.1 \
+    -o parent=en0
+```
 
 
