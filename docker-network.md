@@ -7,7 +7,12 @@
   - [User-defined bridge](#user-defined-bridge)
     - [Container to container DNS](#container-to-container-dns)
   - [Host](#host)
-  - [Mac VLAN](#mac-vlan)
+  - [Mac VLAN (Bridge mode)](#mac-vlan-bridge-mode)
+  - [Mac VLAN (802.1Q trunk bridge mode)](#mac-vlan-8021q-trunk-bridge-mode)
+  - [IPvlan (L2)](#ipvlan-l2)
+  - [IPvlan (L3)](#ipvlan-l3)
+  - [Overlay](#overlay)
+  - [None](#none)
 
 ## Default Bridge
 
@@ -371,7 +376,7 @@ In order to run a container in a host network, simply add `--network host` to yo
 
 `$ docker run -itd --rm --network host --name odin busybox`
 
-## Mac VLAN
+## Mac VLAN (Bridge mode)
 
 - Mac VLAN network connect containers directly to the host *network*.
 - Each container will get their own IP address and even MAC address from the host network.
@@ -381,13 +386,96 @@ Now lets create a Mac VLAN network with the same `docker network create` command
 When creating a Mac VLAN network we also need to specify:
 - The *subnet* of our local network
 - The *gateway* (the local IP address of the router).
-- And the parent interface (*en0* in this case).
+- And the parent interface (*en0* in my case).
 
 ```
 $ docker network create -d macvlan \
     --subnet 192.168.18.0/24 \
     --gateway 192.168.18.1 \
-    -o parent=en0
+    -o parent=eth0 \
+    newasgard
 ```
 
+## Mac VLAN (802.1Q trunk bridge mode)
 
+## IPvlan (L2)
+
+On `Mac VLAN` network, each containers created within the network were given a MAC address. Multiple MAC address on a given network interface will not work if the interface doesn't have a promiscuous mode on. Thus, it may not work out of the box on certain network.
+
+However, with IPvlan, you get the cool benefice of Mac VLAN like your containers being connected directly to your network, but it allows the different containers to share the same MAC address.
+
+Lets create a IPvlan network:
+
+- ipvlan by default will be L2, so you just need to specify `-d ipvlan`
+
+```bash
+$ docker network create -d ipvlan \
+    --subnet 10.10.10.0/24 \
+    --gateway 10.10.10.1 \
+    -o parent=eth0 \
+    newasgard
+```
+
+## IPvlan (L3)
+
+The last docker networks have heavily focussed on layer 2 so far (ARP, MAC, Switch). But with L3, we focus on layer 3, so IP adresses.
+
+So, in a nutshell, our containers wont be connected on an interface, but instead a router. So there won't be broadcast between the containers within the network.
+
+Lets create our IPvlan L3 network:
+
+- it starts just like an IPvlan L2 with the `-d ipvlan`
+- However, the subnet created are completely new and out of the host network
+- No gateway are provided since the gateway will be the specified parent interface
+
+```bash
+$ docker network create -d ipvlan \
+    --subnet 192.168.94.0/24 \
+    -o parent=eth0 -o ipvlan_mode=l3 \
+    --subnet 192.168.95.0/24 \
+    newasgard
+```
+
+Now lets add containers to our network:
+
+- We have to specify an IP adresse to make it knows which sub network the containers will be a part of
+
+```bash
+$ docker run -itd --rm --network newasgard \
+    --ip 192.168.94.7 \
+    -name thor busybox
+```
+```bash
+$ docker run -itd --rm --network newasgard \
+    --ip 192.168.94.8 \
+    -name mjolnir busybox
+```
+You can see that our four containers are inside the network with `$ docker network inspect newasgard`
+
+Now lets access thor's container's shell and ping its friends:
+
+- You can ping containers in your own subnet
+- You can also ping containers in other subnet
+
+```bash
+$ docker exec -it thor sh
+$ ping mjolnir 
+$ ping loki
+```
+IPvlan L3 turns your host into a router, allowing you to run router container networks that are routed. 
+
+## Overlay
+
+Used for orchestrator like Docker swarm.
+
+## None
+
+The most secured network, because there is no network.
+
+It already exist and can be seen when listing your current docker's network:
+
+```bash
+$ docker network ls
+...
+694e196b09c4   none        null      local
+```
